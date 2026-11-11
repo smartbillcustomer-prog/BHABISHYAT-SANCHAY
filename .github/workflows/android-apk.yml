@@ -14,6 +14,7 @@ jobs:
   build:
     name: Build debug APK
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
@@ -25,36 +26,48 @@ jobs:
           java-version: '17'
 
       - name: Prepare Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
         run: |
           SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -n 1)"
-          echo "$(dirname "$SDKMANAGER")" >> "$GITHUB_PATH"
+          if [ -z "$SDKMANAGER" ]; then
+            echo "Android SDK manager not found"
+            exit 1
+          fi
           yes | "$SDKMANAGER" --licenses || true
           "$SDKMANAGER" "platforms;android-36.1" "build-tools;36.0.0"
 
-      - name: Extract project ZIP
+      - name: Extract Android project ZIP
         run: |
-          sudo apt-get update
-          sudo apt-get install -y unzip
-          mkdir -p /tmp/bhabishyat
-          unzip -q BHABISHYAT-SANCHAY-GitHub-Actions.zip -d /tmp/bhabishyat
-          find /tmp/bhabishyat -mindepth 1 -maxdepth 1 ! -name .github -exec cp -a {} . \;
+          if [ ! -f "BHABISHYAT-SANCHAY-GitHub-Actions.zip" ]; then
+            echo "Project ZIP file not found in repository root"
+            exit 1
+          fi
+          mkdir -p /tmp/bhabishyat-project
+          unzip -q "BHABISHYAT-SANCHAY-GitHub-Actions.zip" -d /tmp/bhabishyat-project
+          find /tmp/bhabishyat-project -mindepth 1 -maxdepth 1 ! -name '.github' -exec cp -a {} . \;
+          test -f app/build.gradle.kts
+          test -f app/src/main/AndroidManifest.xml
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.3.1'
 
-      - name: Generate debug signing key
+      - name: Generate debug signing keys
         run: |
-          keytool -genkeypair -v -keystore debug.keystore -storepass android -alias android -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          keytool -genkeypair -noprompt -keystore debug.keystore -storepass android -alias android -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          keytool -genkeypair -noprompt -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          keytool -list -keystore debug.keystore -storepass android
 
-      - name: Build APK
+      - name: Build Debug APK
         run: gradle --no-daemon :app:assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: BHABISHYAT-SANCHAY-debug-apk
+          name: BHABISHYAT-SANCHAY-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
