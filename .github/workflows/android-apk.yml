@@ -25,30 +25,30 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Prepare Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android SDK packages
+      - name: Configure Android SDK
         run: |
-          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -n 1)"
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | head -n 1)"
           if [ -z "$SDKMANAGER" ]; then
-            echo "Android SDK manager not found"
+            echo "ERROR: sdkmanager not found"
             exit 1
           fi
+          echo "Using SDK manager: $SDKMANAGER"
           yes | "$SDKMANAGER" --licenses || true
-          "$SDKMANAGER" "platforms;android-36.1" "build-tools;36.0.0"
+          "$SDKMANAGER" --install "platforms;android-36" "platforms;android-36.1" "build-tools;36.0.0" "platform-tools"
 
       - name: Extract Android project ZIP
         run: |
           if [ ! -f "BHABISHYAT-SANCHAY-GitHub-Actions.zip" ]; then
-            echo "Project ZIP file not found in repository root"
+            echo "Project ZIP not found!"
             exit 1
           fi
           mkdir -p /tmp/bhabishyat-project
-          unzip -q "BHABISHYAT-SANCHAY-GitHub-Actions.zip" -d /tmp/bhabishyat-project
+          unzip -q BHABISHYAT-SANCHAY-GitHub-Actions.zip -d /tmp/bhabishyat-project
           find /tmp/bhabishyat-project -mindepth 1 -maxdepth 1 ! -name '.github' -exec cp -a {} . \;
           test -f app/build.gradle.kts
           test -f app/src/main/AndroidManifest.xml
+          echo "Android project extracted successfully"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -61,7 +61,7 @@ jobs:
           keytool -genkeypair -noprompt -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
           keytool -list -keystore debug.keystore -storepass android
 
-      - name: Build Debug APK
+      - name: Build Android APK
         run: gradle --no-daemon :app:assembleDebug
 
       - name: Upload APK
